@@ -164,7 +164,7 @@ def check_server_user_limit(
                     apply_port_limits(db, port, action)
 
 
-def sync_v2board(db: Session, server: Server, traffics: t.Dict):
+def sync_v2board(db: Session, server: Server, server_users_usage_increment: t.DefaultDict):
     global v2board_user_response_json, v2board_user_response_etag
     # Fetch V2Board allowed users
     failed_to_fetch_users = False
@@ -216,10 +216,10 @@ def sync_v2board(db: Session, server: Server, traffics: t.Dict):
             if v2_id == v2board_user_id:
                 v2board_allowed = True
 
-        push_data[str(v2board_user_id)] = [0, 0]
-        for _, usage in traffics.items():
-            push_data[str(v2board_user_id)][0] += usage.get("upload", 0)
-            push_data[str(v2board_user_id)][1] += usage.get("download", 0)
+        push_data[str(v2board_user_id)] = [
+            server_users_usage_increment[server_user.user_id]["upload"],
+            server_users_usage_increment[server_user.user_id]["download"]
+        ]
 
         if not v2board_allowed and not failed_to_fetch_users:
             action = LimitActionEnum.DELETE_RULE
@@ -259,6 +259,8 @@ def update_traffic(
                 line.split()[1]
             )
     with db_session() as db:
+        if V2BOARD_API_HOST:
+            old_server = get_server_with_ports_usage(db, server.id)
         for port_num, usage in traffics.items():
             update_usage(
                 db, prev_ports, db_ports, server.id, port_num, usage, accumulate
@@ -278,4 +280,23 @@ def update_traffic(
                     ] += port.usage.upload
         check_server_user_limit(db, server, server_users_usage)
         if V2BOARD_API_HOST:
-            sync_v2board(db, server, traffics)
+            server_users_usage_increment = defaultdict(lambda: {"download": 0, "upload": 0})
+            for port in server.ports:
+                for old_port in old_server.ports:
+                    if port.num == old_port.num:
+                        for port_user in port.allowed_users:
+                            if port.usage.download > old_port.usage.download:
+                                server_users_usage_increment[port_user.user_id]["download"] += (
+                                    port.usage.download - old_port.usage.download
+                                )
+                            if port.usage.upload > old_port.usage.upload:
+                                server_users_usage_increment[port_user.user_id]["upload"] += (
+                                    port.usage.upload - old_port.usage.upload
+                                )
+                        break
+                else:
+                    for port_user in port.allowed_users:
+                        server_users_usage_increment[port_user.user_id]["download"] += port.usage.download
+                        server_users_usage_increment[port_user.user_id]["upload"] += port.usage.upload
+
+            sync_v2board(db, server, server_users_usage_increment)
