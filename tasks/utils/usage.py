@@ -4,7 +4,7 @@ from datetime import datetime
 from collections import defaultdict
 
 import httpx
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import V2BOARD_API_HOST, V2BOARD_NODE_ID, V2BOARD_NODE_TYPE, V2BOARD_API_KEY
 from app.db.constants import LimitActionEnum
@@ -194,11 +194,17 @@ def sync_v2board(db: Session, server: Server, traffics: t.Dict):
 
     push_data = {}
     for server_user in server.allowed_users:
-        if not server_user.notes:
+        user = (
+            db.query(User)
+            .filter(User.id == server_user.user_id)
+            .first()
+        )
+        notes = user.notes if user else None
+        if not notes:
             print(f"User {server_user.user_id} has no notes, skipping")
             continue
 
-        v2_id = re.search(r"V2BOARD_ID=(\d+);", server_user.notes)
+        v2_id = re.search(r"V2BOARD_ID=(\d+);", notes)
         if v2_id:
             v2board_user_id = int(v2_id.group(1))
         else:
