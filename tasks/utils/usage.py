@@ -215,6 +215,12 @@ def sync_v2board(db: Session, server: Server, server_users_usage_increment: t.De
         for v2_id in v2board_user_ids:
             if v2_id == v2board_user_id:
                 v2board_allowed = True
+                if not user.is_active:
+                    print(f"User {server_user.user_id} is now allowed in V2Board, activating")
+                    user.is_active = True
+                    db.add(user)
+                    db.commit()
+                    db.refresh(user)
 
         push_data[str(v2board_user_id)] = [
             server_users_usage_increment[server_user.user_id]["upload"],
@@ -230,6 +236,7 @@ def sync_v2board(db: Session, server: Server, server_users_usage_increment: t.De
                 ]:
                     apply_port_limits(db, port, action)
 
+            print(f"User {server_user.user_id} is not allowed in V2Board, deactivating")
             user.is_active = False
             db.add(user)
             db.commit()
