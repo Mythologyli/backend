@@ -230,6 +230,10 @@ def sync_v2board(db: Session, server: Server, server_users_usage_increment: t.De
                 ]:
                     apply_port_limits(db, port, action)
 
+            user.is_active = False
+            db.add(user)
+            db.commit()
+
     # Push usage to V2Board
     try:
         r = httpx.post(
