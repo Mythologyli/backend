@@ -263,9 +263,10 @@ def update_traffic(
             old_server = get_server_with_ports_usage(db, server.id)
             old_ports = []
             for old_port in old_server.ports:
-                old_ports.append(
-                    {"num": old_port.num, "download": old_port.usage.download, "upload": old_port.usage.upload}
-                )
+                if old_port.usage:
+                    old_ports.append(
+                        {"num": old_port.num, "download": old_port.usage.download, "upload": old_port.usage.upload}
+                    )
 
         for port_num, usage in traffics.items():
             update_usage(
