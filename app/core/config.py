@@ -12,4 +12,12 @@ DDNS_INTERVAL_SECONDS = os.getenv("DDNS_INTERVAL_SECONDS", 120)
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = os.getenv("REDIS_PORT", "6379")
 
+V2BOARD_API_HOST = os.getenv("V2BOARD_API_HOST", "")
+if V2BOARD_API_HOST.endswith("/"):
+    V2BOARD_API_HOST = V2BOARD_API_HOST[:-1]
+
+V2BOARD_API_KEY = os.getenv("V2BOARD_API_KEY", "")
+V2BOARD_NODE_ID = os.getenv("V2BOARD_NODE_ID", 1)
+V2BOARD_NODE_TYPE = os.getenv("V2BOARD_NODE_TYPE", "v2ray")
+
 API_V1_STR = "/api/v1"

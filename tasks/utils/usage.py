@@ -2,8 +2,11 @@ import re
 import typing as t
 from datetime import datetime
 from collections import defaultdict
+
+import httpx
 from sqlalchemy.orm import Session
 
+from app.core.config import V2BOARD_API_HOST, V2BOARD_NODE_ID, V2BOARD_NODE_TYPE, V2BOARD_API_KEY
 from app.db.constants import LimitActionEnum
 from app.db.session import db_session
 from app.db.models.port import Port
@@ -20,6 +23,10 @@ from app.db.schemas.server import ServerEdit
 
 from tasks.port import clean_port_no_update_runner
 from tasks.tc import tc_runner
+
+
+v2board_user_response_json = None
+v2board_user_response_etag = None
 
 
 def update_usage(
@@ -157,6 +164,75 @@ def check_server_user_limit(
                     apply_port_limits(db, port, action)
 
 
+def sync_v2board(db: Session, server: Server, traffics: t.Dict):
+    global v2board_user_response_json, v2board_user_response_etag
+    # Fetch V2Board allowed users
+    failed_to_fetch_users = False
+    try:
+        if v2board_user_response_etag is not None:
+            headers = {"If-None-Match": v2board_user_response_etag}
+        else:
+            headers = {}
+
+        r = httpx.get(
+            f"{V2BOARD_API_HOST}/api/v1/server/UniProxy/user?"
+            f"node_id={V2BOARD_NODE_ID}&node_type={V2BOARD_NODE_TYPE}&token={V2BOARD_API_KEY}",
+            headers=headers
+        )
+        if r.status_code == 200:
+            v2board_user_response_json = r.json()
+            v2board_user_response_etag = r.headers.get("ETag")
+        elif r.status_code == 304:
+            print("Using cached V2Board user data")
+        else:
+            raise Exception(f"{r.status_code} {r.text}")
+        v2board_user_ids = [user["id"] for user in v2board_user_response_json["users"]]
+    except Exception as e:
+        print(f"Error fetching V2Board users: {e}")
+        failed_to_fetch_users = True
+        v2board_user_ids = []
+
+    push_data = {}
+    for server_user in server.allowed_users:
+        v2_id = re.search(r"V2BOARD_ID=(\d+);", server_user.notes)
+        if v2_id:
+            v2board_user_id = int(v2_id.group(1))
+        else:
+            print(f"User {server_user.user_id} has no V2BOARD_ID, skipping")
+            continue
+
+        v2board_allowed = False
+        for v2_id in v2board_user_ids:
+            if v2_id == v2board_user_id:
+                v2board_allowed = True
+
+        push_data[str(v2board_user_id)] = [0, 0]
+        for _, usage in traffics.items():
+            push_data[str(v2board_user_id)][0] += usage.get("upload", 0)
+            push_data[str(v2board_user_id)][1] += usage.get("download", 0)
+
+        if not v2board_allowed and not failed_to_fetch_users:
+            action = LimitActionEnum.DELETE_RULE
+            print(f"User {server_user.user_id} not allowed in V2Board, apply action {action}")
+            for port in server_user.server.ports:
+                if server_user.user_id in [
+                    u.user_id for u in port.allowed_users
+                ]:
+                    apply_port_limits(db, port, action)
+
+    # Push usage to V2Board
+    try:
+        r = httpx.post(
+            f"{V2BOARD_API_HOST}/api/v1/server/UniProxy/push?"
+            f"node_id={V2BOARD_NODE_ID}&node_type={V2BOARD_NODE_TYPE}&token={V2BOARD_API_KEY}",
+            json=push_data
+        )
+        if r.json()["status"] != "success":
+            print(f"Error pushing usage to V2Board: {r.json()}")
+    except Exception as e:
+        print(f"Error pushing usage to V2Board: {e}")
+
+
 def update_traffic(
     server: Server, traffic: str, accumulate: bool = False
 ):
@@ -191,3 +267,5 @@ def update_traffic(
                         "upload"
                     ] += port.usage.upload
         check_server_user_limit(db, server, server_users_usage)
+        if V2BOARD_API_HOST:
+            sync_v2board(db, server, traffics)
