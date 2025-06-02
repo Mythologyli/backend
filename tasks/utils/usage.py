@@ -261,6 +261,12 @@ def update_traffic(
     with db_session() as db:
         if V2BOARD_API_HOST:
             old_server = get_server_with_ports_usage(db, server.id)
+            old_ports = []
+            for old_port in old_server.ports:
+                old_ports.append(
+                    {"num": old_port.num, "download": old_port["download"], "upload": old_port["upload"]}
+                )
+
         for port_num, usage in traffics.items():
             update_usage(
                 db, prev_ports, db_ports, server.id, port_num, usage, accumulate
@@ -282,16 +288,16 @@ def update_traffic(
         if V2BOARD_API_HOST:
             server_users_usage_increment = defaultdict(lambda: {"download": 0, "upload": 0})
             for port in server.ports:
-                for old_port in old_server.ports:
-                    if port.num == old_port.num:
+                for old_port in old_ports:
+                    if port.num == old_port["num"]:
                         for port_user in port.allowed_users:
-                            if port.usage.download > old_port.usage.download:
+                            if port.usage.download > old_port["download"]:
                                 server_users_usage_increment[port_user.user_id]["download"] += (
-                                    port.usage.download - old_port.usage.download
+                                    port.usage.download - old_port["download"]
                                 )
-                            if port.usage.upload > old_port.usage.upload:
+                            if port.usage.upload > old_port["upload"]:
                                 server_users_usage_increment[port_user.user_id]["upload"] += (
-                                    port.usage.upload - old_port.usage.upload
+                                    port.usage.upload - old_port["upload"]
                                 )
                         break
                 else:
