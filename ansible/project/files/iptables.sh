@@ -57,7 +57,7 @@ install_ip () {
 
 get_ips () {
     install_ip
-    IFACE=$(ip route show | grep default | grep metric | awk -F 'dev ' '{print $2}' | awk '{print $1}')
+    IFACE=$(ip route show | grep default | awk -F 'dev ' '{print $2}' | awk '{print $1}')
     INET=$(ip address show $IFACE scope global |  awk '/inet / {split($2,var,"/"); print var[1]}')
     INET=$(echo $INET | xargs -n 1 | grep -Eo "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$" | sort -u)
 }
