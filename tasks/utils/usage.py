@@ -194,6 +194,10 @@ def sync_v2board(db: Session, server: Server, traffics: t.Dict):
 
     push_data = {}
     for server_user in server.allowed_users:
+        if not server_user.notes:
+            print(f"User {server_user.user_id} has no notes, skipping")
+            continue
+
         v2_id = re.search(r"V2BOARD_ID=(\d+);", server_user.notes)
         if v2_id:
             v2board_user_id = int(v2_id.group(1))
