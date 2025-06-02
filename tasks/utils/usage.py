@@ -264,7 +264,7 @@ def update_traffic(
             old_ports = []
             for old_port in old_server.ports:
                 old_ports.append(
-                    {"num": old_port.num, "download": old_port["download"], "upload": old_port["upload"]}
+                    {"num": old_port.num, "download": old_port.usage.download, "upload": old_port.usage.upload}
                 )
 
         for port_num, usage in traffics.items():
