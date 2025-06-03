@@ -314,7 +314,11 @@ def update_traffic(
                         break
                 else:
                     for port_user in port.allowed_users:
-                        server_users_usage_increment[port_user.user_id]["download"] += port.usage.download
-                        server_users_usage_increment[port_user.user_id]["upload"] += port.usage.upload
+                        try:
+                            server_users_usage_increment[port_user.user_id]["download"] += port.usage.download
+                            server_users_usage_increment[port_user.user_id]["upload"] += port.usage.upload
+                        except AttributeError:
+                            print(f"Port {port.num} has no usage, skipping")
+                            continue
 
             sync_v2board(db, server, server_users_usage_increment)
