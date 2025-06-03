@@ -72,4 +72,9 @@ async def ports_list(
     """
     Get all ports on one server
     """
-    return paginate(get_ports(db, server_id, user))
+    ports = get_ports(db, server_id, user)
+    if not user.is_superuser:
+        for port in ports:
+            port.config["egress_limit"] = None
+            port.config["ingress_limit"] = None
+    return paginate(ports)

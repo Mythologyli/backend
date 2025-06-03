@@ -79,6 +79,9 @@ async def ports_list(
 
     if user.is_admin():
         return [PortOpsOut(**port.__dict__) for port in ports]
+    for port in ports:
+        port.config["egress_limit"] = None
+        port.config["ingress_limit"] = None
     return [PortOut(**port.__dict__) for port in ports]
 
 
@@ -110,6 +113,8 @@ async def port_get(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Port not found"
         )
+    port.config["egress_limit"] = None
+    port.config["ingress_limit"] = None
     return PortOut(**port.__dict__)
 
 
@@ -162,6 +167,9 @@ async def port_edit(
         port = PortEditBase(**port.dict(exclude_unset=True))
     db_port = edit_port(db, db_port, port)
     trigger_tc(db_port)
+    if not user.is_admin():
+        db_port.config["egress_limit"] = None
+        db_port.config["ingress_limit"] = None
     return db_port
 
 
